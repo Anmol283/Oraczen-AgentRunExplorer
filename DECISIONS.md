@@ -25,8 +25,8 @@ what it does and what I would improve.
 ## What is not finished
 
 - The initial runs list is rendered on the server, but filter and page changes
-  after loading fetch updated results in the browser. Sorting is available in the
-  API but not as a page control.
+  after loading fetch updated results in the browser. Sort field and direction
+  are available as page controls and are preserved in the URL.
 - Run explanations use `POST` and stream through a provider interface. The
   built-in mock provider is selected with `EXPLAIN_PROVIDER=mock` and works
   without an API key. It uses recorded run and error details; it is still a

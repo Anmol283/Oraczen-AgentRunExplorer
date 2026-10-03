@@ -12,11 +12,17 @@ type Run = {
 };
 
 const PAGE_SIZE = 25;
+const SORT_FIELDS = ['started_at', 'duration_ms', 'cost_usd'] as const;
+type SortField = (typeof SORT_FIELDS)[number];
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
 function firstParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+}
+
+function validSortField(value: string): SortField {
+  return SORT_FIELDS.includes(value as SortField) ? (value as SortField) : 'started_at';
 }
 
 export default async function RunsPage({
@@ -30,14 +36,17 @@ export default async function RunsPage({
   const tool = firstParam(searchParams.tool);
   const startedAtFrom = firstParam(searchParams.started_at_from);
   const startedAtTo = firstParam(searchParams.started_at_to);
+  const sort = validSortField(firstParam(searchParams.sort));
+  const requestedOrder = firstParam(searchParams.order);
+  const order = requestedOrder === 'asc' || requestedOrder === 'desc' ? requestedOrder : 'desc';
   const parsedPage = Number(firstParam(searchParams.page) || '1');
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
   const apiParams = new URLSearchParams({
     limit: String(PAGE_SIZE),
     offset: String((page - 1) * PAGE_SIZE),
-    sort: 'started_at',
-    order: 'desc',
+    sort,
+    order,
   });
   if (status) apiParams.set('status', status);
   if (agent) apiParams.set('agent', agent);
@@ -79,6 +88,8 @@ export default async function RunsPage({
       initialStartedAtFrom={startedAtFrom}
       initialStartedAtTo={startedAtTo}
       initialPage={page}
+      initialSort={sort}
+      initialOrder={order}
     />
   );
 }

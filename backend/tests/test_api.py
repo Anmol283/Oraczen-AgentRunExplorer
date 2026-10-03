@@ -99,6 +99,23 @@ def test_duration_stats_only_include_completed_runs(tmp_path):
     assert duration_summary["p95_ms"] == 300
 
 
+def test_run_sort_supports_ascending_and_descending(tmp_path):
+    data_path = tmp_path / "runs.jsonl"
+    data_path.write_text(
+        '{"id":"low","agent":"sample","status":"succeeded","cost_usd":0.1}\n'
+        '{"id":"middle","agent":"sample","status":"succeeded","cost_usd":0.2}\n'
+        '{"id":"high","agent":"sample","status":"succeeded","cost_usd":0.3}\n',
+        encoding="utf-8",
+    )
+    store = RunStore(data_path)
+
+    ascending = store.list_runs(sort="cost_usd", order="asc", limit=10)
+    descending = store.list_runs(sort="cost_usd", order="desc", limit=10)
+
+    assert [run["id"] for run in ascending["items"]] == ["low", "middle", "high"]
+    assert [run["id"] for run in descending["items"]] == ["high", "middle", "low"]
+
+
 def test_missing_run_returns_404():
     response = client.get("/api/runs/nonexistent-run-id")
 

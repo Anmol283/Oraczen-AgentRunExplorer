@@ -15,6 +15,9 @@ type Run = {
   cost_usd: number | null;
 };
 
+type SortField = 'started_at' | 'duration_ms' | 'cost_usd';
+type SortOrder = 'asc' | 'desc';
+
 type RunsClientProps = {
   initialRuns: Run[];
   initialTotal: number;
@@ -26,6 +29,8 @@ type RunsClientProps = {
   initialStartedAtFrom: string;
   initialStartedAtTo: string;
   initialPage: number;
+  initialSort: SortField;
+  initialOrder: SortOrder;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
@@ -42,6 +47,8 @@ export default function RunsClient({
   initialStartedAtFrom,
   initialStartedAtTo,
   initialPage,
+  initialSort,
+  initialOrder,
 }: RunsClientProps) {
   const [runs, setRuns] = useState(initialRuns);
   const [total, setTotal] = useState(initialTotal);
@@ -51,6 +58,8 @@ export default function RunsClient({
   const [tool, setTool] = useState(initialTool);
   const [startedAtFrom, setStartedAtFrom] = useState(initialStartedAtFrom);
   const [startedAtTo, setStartedAtTo] = useState(initialStartedAtTo);
+  const [sort, setSort] = useState<SortField>(initialSort);
+  const [order, setOrder] = useState<SortOrder>(initialOrder);
   const [appliedStatus, setAppliedStatus] = useState(initialStatus);
   const [appliedAgent, setAppliedAgent] = useState(initialAgent);
   const [appliedQuery, setAppliedQuery] = useState(initialQuery);
@@ -78,8 +87,8 @@ export default function RunsClient({
     if (appliedStartedAtTo) params.set('started_at_to', appliedStartedAtTo);
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String((page - 1) * PAGE_SIZE));
-    params.set('sort', 'started_at');
-    params.set('order', 'desc');
+    params.set('sort', sort);
+    params.set('order', order);
     return params;
   }, [
     appliedStatus,
@@ -89,6 +98,8 @@ export default function RunsClient({
     appliedStartedAtFrom,
     appliedStartedAtTo,
     page,
+    sort,
+    order,
   ]);
   const requestKey = requestParams.toString();
   const initialRequestKey = useRef(requestKey);
@@ -101,6 +112,8 @@ export default function RunsClient({
     if (appliedTool) params.set('tool', appliedTool);
     if (appliedStartedAtFrom) params.set('started_at_from', appliedStartedAtFrom);
     if (appliedStartedAtTo) params.set('started_at_to', appliedStartedAtTo);
+    params.set('sort', sort);
+    params.set('order', order);
     if (page > 1) params.set('page', String(page));
     return params.toString() ? `?${params.toString()}` : '';
   }, [
@@ -111,6 +124,8 @@ export default function RunsClient({
     appliedStartedAtFrom,
     appliedStartedAtTo,
     page,
+    sort,
+    order,
   ]);
 
   useEffect(() => {
@@ -286,6 +301,37 @@ export default function RunsClient({
               onChange={(event) => setStartedAtTo(event.target.value)}
               aria-label="Started at or before"
             />
+          </label>
+
+          <label>
+            Sort by
+            <select
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value as SortField);
+                setPage(1);
+              }}
+              aria-label="Sort runs by"
+            >
+              <option value="started_at">Started</option>
+              <option value="duration_ms">Duration</option>
+              <option value="cost_usd">Cost</option>
+            </select>
+          </label>
+
+          <label>
+            Order
+            <select
+              value={order}
+              onChange={(event) => {
+                setOrder(event.target.value as SortOrder);
+                setPage(1);
+              }}
+              aria-label="Sort order"
+            >
+              <option value="desc">Descending</option>
+              <option value="asc">Ascending</option>
+            </select>
           </label>
         </div>
 
