@@ -77,7 +77,9 @@ export default function RunDetailPage() {
   const handleExplain = async () => {
     if (!params?.id) return;
     setMessages([]);
-    const response = await fetch(`${API_BASE}/api/runs/${encodeURIComponent(params.id)}/explain`);
+    const response = await fetch(`${API_BASE}/api/runs/${encodeURIComponent(params.id)}/explain`, {
+      method: 'POST',
+    });
     if (!response.ok) {
       setMessages([`Explanation request failed (HTTP ${response.status}).`]);
       return;

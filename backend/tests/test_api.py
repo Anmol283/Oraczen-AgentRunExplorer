@@ -82,17 +82,37 @@ def test_stats_success_rate_matches_hand_calculation(tmp_path):
     assert stats["success_rate"] == 0.5
 
 
+def test_duration_stats_only_include_completed_runs(tmp_path):
+    data_path = tmp_path / "runs.jsonl"
+    data_path.write_text(
+        '{"id":"success","agent":"sample","status":"succeeded","duration_ms":100}\n'
+        '{"id":"failure","agent":"sample","status":"failed","duration_ms":200}\n'
+        '{"id":"cancelled","agent":"sample","status":"cancelled","duration_ms":300}\n'
+        '{"id":"running","agent":"sample","status":"running","duration_ms":10000}\n',
+        encoding="utf-8",
+    )
+
+    duration_summary = RunStore(data_path).get_stats()["duration_summary"]
+
+    assert duration_summary["count"] == 3
+    assert duration_summary["median_ms"] == 200
+    assert duration_summary["p95_ms"] == 300
+
+
 def test_missing_run_returns_404():
     response = client.get("/api/runs/nonexistent-run-id")
 
     assert response.status_code == 404
 
 
-def test_explain_stream_for_run():
-    run_id = client.get("/api/runs?limit=1").json()["items"][0]["id"]
+def test_post_explain_stream_uses_mock_provider(monkeypatch):
+    monkeypatch.setenv("EXPLAIN_PROVIDER", "mock")
+    run_id = client.get("/api/runs?status=failed&limit=1").json()["items"][0]["id"]
 
-    response = client.get(f"/api/runs/{run_id}/explain")
+    response = client.post(f"/api/runs/{run_id}/explain")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
+    assert '"message":' in response.text
+    assert "Error:" in response.text
     assert '"done": true' in response.text

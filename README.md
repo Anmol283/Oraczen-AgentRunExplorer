@@ -24,7 +24,7 @@ Instead of grepping through JSONL files, use a searchable run list, inspect each
 | --- | --- |
 | **Runs** | Browse, search, filter, and page through agent runs. Filter by status, agent, tool, or start-date range; search prompts, agent names, and run IDs. |
 | **Run details** | Inspect the prompt, status, timing, cost, errors, and ordered execution steps, including each step’s tool, input, output, duration, and token counts when available. |
-| **Explain a run** | Request a streamed summary of a run without needing an API key. |
+| **Explain a run** | Request a progressively streamed explanation. The configurable mock provider works without an API key and points out recorded failure details. |
 | **Dashboard** | Review overall and per-agent run statistics, durations, costs, and daily run volume. |
 | **Shareable views** | List filters and the selected page are reflected in the URL, so you can copy and reopen a view. |
 | **Keyboard navigation** | Move the selected run with the arrow keys and open it with Enter. |
@@ -85,6 +85,8 @@ When both services are running, visit:
 
 The frontend reads `NEXT_PUBLIC_API_BASE_URL` from `frontend/.env.local`; it defaults to `http://localhost:8000`. Change it if your backend is listening at a different address, then restart the frontend dev server.
 
+The backend reads `EXPLAIN_PROVIDER` from its process environment. It defaults to `mock`; set `EXPLAIN_PROVIDER=mock` in the backend terminal to select it explicitly. No API key is required.
+
 ## Explore the app
 
 ### Runs list
@@ -117,10 +119,10 @@ The backend runs separately from Next.js. Use `http://localhost:8000` as the bas
 | `GET /health` | Check that the service is up. | `{"status":"ok"}` |
 | `GET /api/runs` | Return a page of run summaries. Query parameters include `status`, `agent`, `tool`, `started_at_from`, `started_at_to`, `q`, `sort`, `order`, `limit`, and `offset`. | An object with `total` and an `items` array without `steps`. |
 | `GET /api/runs/{run_id}` | Return one run, including its steps. | A run record; `404` if the ID is unknown. |
-| `GET /api/stats` | Return global dashboard aggregates. | Run counts, success rates, duration summary, cost totals, and daily counts. |
-| `GET /api/runs/{run_id}/explain` | Stream a basic run summary as Server-Sent Events (SSE). | `text/event-stream`; `404` if the ID is unknown. |
+| `GET /api/stats` | Return global dashboard aggregates. | Run counts, success rates, completed-run duration summary, cost totals, and daily counts. |
+| `POST /api/runs/{run_id}/explain` | Progressively stream a short explanation as Server-Sent Events (SSE). | `text/event-stream`; `404` if the ID is unknown. |
 
-The assignment requires `POST /api/runs/{id}/explain` with a mock provider. That required method/provider are **not implemented**: the current backend exposes the `GET` route above and directly streams a basic summary. No API key is needed for the current summary stream.
+The explain provider is selected with `EXPLAIN_PROVIDER`; `mock` is the built-in provider and the default. It emits deterministic text in delayed chunks, requires no API key, and includes recorded failure details when available.
 
 ### Current run-list query parameters
 
@@ -177,7 +179,7 @@ List items omit `steps` to keep the response compact. For full step details, cal
   "cost_by_agent": { "example-agent": 1.25 },
   "daily_counts": { "2025-01-15": 3 },
   "duration_summary": {
-    "count": 180,
+    "count": 3,
     "median_ms": 1200,
     "p95_ms": 5000,
     "average_ms": 1600.5
@@ -185,7 +187,7 @@ List items omit `steps` to keep the response compact. For full step details, cal
 }
 ```
 
-Values above illustrate the response shape; actual values depend on the data. Success rates are fractions from `0` to `1`. Currently, the overall denominator includes all runs, including running ones, and duration statistics include every run with a recorded duration; they are not limited to completed runs as the assignment requires. Daily counts include every date between the earliest and latest recorded start dates, filling days with no runs as zero.
+Values above illustrate the response shape; actual values depend on the data. Success rates are fractions from `0` to `1`; the success-rate denominator includes all runs, including running ones. Duration statistics include only runs with a terminal status (`succeeded`, `failed`, or `cancelled`) and a recorded duration. Daily counts include every date between the earliest and latest recorded start dates, filling days with no runs as zero.
 
 ## Example requests and responses
 
@@ -219,10 +221,10 @@ curl "http://localhost:8000/api/stats"
 
 ```bash
 curl "http://localhost:8000/api/runs/run_0042"
-curl -N "http://localhost:8000/api/runs/run_0042/explain"
+curl -N -X POST "http://localhost:8000/api/runs/run_0042/explain"
 ```
 
-The second request uses the current `GET` route and returns a progressively streamed SSE response. It needs no API key. It is a basic summary stream, not the assignment’s required `POST` route or configurable mock-provider implementation.
+The second request progressively prints SSE events as the mock provider generates the explanation. It requires no API key.
 
 ## Data and decisions
 
@@ -248,7 +250,7 @@ cd backend
 ../.venv/bin/python -m pytest -q
 ```
 
-The backend tests cover composed filters, tool filtering, statistics, missing-run `404`s, and the explain stream.
+The backend tests cover composed filters, tool filtering, date filtering, list/detail response shapes, statistics (including completed-run duration calculations), missing-run `404`s, and the explain stream.
 
 ## Project layout
 

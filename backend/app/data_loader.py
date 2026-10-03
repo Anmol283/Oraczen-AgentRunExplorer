@@ -262,7 +262,12 @@ class RunStore:
                 "success_rate": round(agent_success / agent_total, 4) if agent_total else 0.0,
             }
 
-        duration_values = [run["duration_ms"] for run in runs if run["duration_ms"] is not None]
+        completed_statuses = {"succeeded", "failed", "cancelled"}
+        duration_values = [
+            run["duration_ms"]
+            for run in runs
+            if run["status"] in completed_statuses and run["duration_ms"] is not None
+        ]
         duration_summary = {
             "count": len(duration_values),
             "median_ms": int(median(duration_values)) if duration_values else None,
