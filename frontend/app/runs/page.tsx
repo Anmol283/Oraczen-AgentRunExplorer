@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 type Run = {
@@ -15,6 +16,7 @@ type Run = {
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+const PAGE_SIZE = 25;
 
 export default function RunsPage() {
   const [runs, setRuns] = useState<Run[]>([]);
@@ -22,35 +24,85 @@ export default function RunsPage() {
   const [status, setStatus] = useState('');
   const [agent, setAgent] = useState('');
   const [query, setQuery] = useState('');
+  const [tool, setTool] = useState('');
+  const [appliedStatus, setAppliedStatus] = useState('');
+  const [appliedAgent, setAppliedAgent] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
+  const [appliedTool, setAppliedTool] = useState('');
+  const [page, setPage] = useState(1);
+  const [filtersReady, setFiltersReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [requestCount, setRequestCount] = useState(0);
+  const [lastRequestDuration, setLastRequestDuration] = useState<number | null>(null);
+  const router = useRouter();
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const firstRun = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const lastRun = Math.min(page * PAGE_SIZE, total);
 
   const currentUrl = useMemo(() => {
     const params = new URLSearchParams();
-    if (status) params.set('status', status);
-    if (agent) params.set('agent', agent);
-    if (query) params.set('q', query);
+    if (appliedStatus) params.set('status', appliedStatus);
+    if (appliedAgent) params.set('agent', appliedAgent);
+    if (appliedQuery) params.set('q', appliedQuery);
+    if (appliedTool) params.set('tool', appliedTool);
+    if (page > 1) params.set('page', String(page));
     return params.toString() ? `?${params.toString()}` : '';
-  }, [status, agent, query]);
+  }, [appliedStatus, appliedAgent, appliedQuery, appliedTool, page]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setStatus(params.get('status') ?? '');
-    setAgent(params.get('agent') ?? '');
-    setQuery(params.get('q') ?? '');
+    const initialStatus = params.get('status') ?? '';
+    const initialAgent = params.get('agent') ?? '';
+    const initialQuery = params.get('q') ?? '';
+    const initialTool = params.get('tool') ?? '';
+    const requestedPage = Number(params.get('page') ?? 1);
+    const initialPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    setStatus(initialStatus);
+    setAgent(initialAgent);
+    setQuery(initialQuery);
+    setTool(initialTool);
+    setAppliedStatus(initialStatus);
+    setAppliedAgent(initialAgent);
+    setAppliedQuery(initialQuery);
+    setAppliedTool(initialTool);
+    setPage(initialPage);
+    setFiltersReady(true);
   }, []);
 
   useEffect(() => {
+    if (!filtersReady) return;
+    const nextAgent = agent.trim();
+    const nextQuery = query.trim();
+    const nextTool = tool.trim();
+    const filtersChanged =
+      nextAgent !== appliedAgent || nextQuery !== appliedQuery || nextTool !== appliedTool;
+    const timeout = window.setTimeout(() => {
+      if (filtersChanged) setPage(1);
+      setAppliedAgent(nextAgent);
+      setAppliedQuery(nextQuery);
+      setAppliedTool(nextTool);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [agent, query, tool, filtersReady, appliedAgent, appliedQuery, appliedTool]);
+
+  useEffect(() => {
+    if (!filtersReady) return;
     const controller = new AbortController();
     const params = new URLSearchParams();
-    if (status) params.set('status', status);
-    if (agent) params.set('agent', agent);
-    if (query) params.set('q', query);
-    params.set('limit', '25');
+    if (appliedStatus) params.set('status', appliedStatus);
+    if (appliedAgent) params.set('agent', appliedAgent);
+    if (appliedQuery) params.set('q', appliedQuery);
+    if (appliedTool) params.set('tool', appliedTool);
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String((page - 1) * PAGE_SIZE));
     params.set('sort', 'started_at');
     params.set('order', 'desc');
 
     const url = `${API_BASE}/api/runs?${params.toString()}`;
+    const startedAt = performance.now();
+    setRequestCount((count) => count + 1);
     setLoading(true);
     setError(null);
     fetch(url, { signal: controller.signal })
@@ -61,8 +113,15 @@ export default function RunsPage() {
         return response.json();
       })
       .then((payload) => {
+        const nextTotal = payload.total ?? 0;
+        const lastPage = Math.max(1, Math.ceil(nextTotal / PAGE_SIZE));
+        setTotal(nextTotal);
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
         setRuns(payload.items ?? []);
-        setTotal(payload.total ?? 0);
+        setSelectedIndex(0);
       })
       .catch((error) => {
         if (error.name !== 'AbortError') {
@@ -70,11 +129,43 @@ export default function RunsPage() {
           setError(`Could not load runs from ${API_BASE}. Start the FastAPI backend first.`);
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLastRequestDuration(Math.round(performance.now() - startedAt));
+          setLoading(false);
+        }
+      });
 
     window.history.replaceState({}, '', currentUrl || window.location.pathname);
     return () => controller.abort();
-  }, [status, agent, query, currentUrl]);
+  }, [filtersReady, appliedStatus, appliedAgent, appliedQuery, appliedTool, page, currentUrl]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || target.closest('input, select, textarea, button, a'))
+      ) {
+        return;
+      }
+      if (loading || error || runs.length === 0) return;
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setSelectedIndex((index) => Math.min(index + 1, runs.length - 1));
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setSelectedIndex((index) => Math.max(index - 1, 0));
+      } else if (event.key === 'Enter' && runs[selectedIndex]) {
+        event.preventDefault();
+        router.push(`/runs/${encodeURIComponent(runs[selectedIndex].id)}`);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [error, loading, router, runs, selectedIndex]);
 
   return (
     <main>
@@ -92,7 +183,11 @@ export default function RunsPage() {
       <section className="card">
         <h2>Filters</h2>
         <div className="toolbar">
-          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+          <select value={status} onChange={(event) => {
+            setStatus(event.target.value);
+            setAppliedStatus(event.target.value);
+            setPage(1);
+          }}>
             <option value="">All statuses</option>
             <option value="running">Running</option>
             <option value="succeeded">Succeeded</option>
@@ -111,9 +206,22 @@ export default function RunsPage() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search prompt or ID"
           />
+
+          <input
+            value={tool}
+            onChange={(event) => setTool(event.target.value)}
+            placeholder="Tool name(s)"
+            aria-label="Filter by step tool"
+          />
         </div>
 
-        <p className="small-muted">Showing {runs.length} of {total} runs</p>
+        <p className="small-muted">
+          Showing {firstRun}–{lastRun} of {total} runs · Page {page} of {pageCount}
+        </p>
+        <p className="small-muted request-metrics" aria-live="polite">
+          API requests: {requestCount} · Latest: {lastRequestDuration === null ? '—' : `${lastRequestDuration} ms`}
+          {loading ? ' · Loading' : ''}
+        </p>
 
         {error ? (
           <div className="card" style={{ marginTop: 12 }}>
@@ -122,8 +230,10 @@ export default function RunsPage() {
           </div>
         ) : loading ? (
           <p>Loading runs...</p>
+        ) : runs.length === 0 ? (
+          <p>No runs match these filters.</p>
         ) : (
-          <table className="table">
+          <table className="table" aria-label="Agent runs">
             <thead>
               <tr>
                 <th>ID</th>
@@ -135,8 +245,13 @@ export default function RunsPage() {
               </tr>
             </thead>
             <tbody>
-              {runs.map((run) => (
-                <tr key={run.id}>
+              {runs.map((run, index) => (
+                <tr
+                  key={run.id}
+                  className={selectedIndex === index ? 'keyboard-selected' : undefined}
+                  aria-selected={selectedIndex === index}
+                  onClick={() => setSelectedIndex(index)}
+                >
                   <td><Link href={`/runs/${run.id}`}>{run.id}</Link></td>
                   <td>{run.agent}</td>
                   <td>
@@ -150,6 +265,26 @@ export default function RunsPage() {
             </tbody>
           </table>
         )}
+
+        {!error && total > 0 ? (
+          <nav className="pagination" aria-label="Run pages">
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={loading || page <= 1}
+            >
+              Previous
+            </button>
+            <span className="small-muted">Page {page} of {pageCount}</span>
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+              disabled={loading || page >= pageCount}
+            >
+              Next
+            </button>
+          </nav>
+        ) : null}
       </section>
     </main>
   );

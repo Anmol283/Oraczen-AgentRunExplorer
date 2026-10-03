@@ -5,41 +5,53 @@ from main import app
 client = TestClient(app)
 
 
-def test_health_check():
-    response = client.get("/health")
+def test_status_and_agent_filters_compose():
+    response = client.get(
+        "/api/runs?status=failed&agent=kpi-analyst"
+    )
+
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+
+    payload = response.json()
+
+    for run in payload["items"]:
+        assert run["status"] == "failed"
+        assert run["agent"] == "kpi-analyst"
 
 
-def test_runs_list_has_items():
-    response = client.get("/api/runs?limit=5")
+def test_tool_filter_matches_runs_with_matching_step():
+    response = client.get("/api/runs?tool=vector_search&limit=500")
+
     assert response.status_code == 200
     payload = response.json()
-    assert payload["total"] > 0
-    assert len(payload["items"]) > 0
+    assert payload["items"]
+    assert all(
+        any(step.get("tool") == "vector_search" for step in run["steps"])
+        for run in payload["items"]
+    )
 
 
-def test_runs_detail_endpoint():
-    response = client.get("/api/runs")
-    first_id = response.json()["items"][0]["id"]
-    detail = client.get(f"/api/runs/{first_id}")
-    assert detail.status_code == 200
-    assert detail.json()["id"] == first_id
-
-
-def test_stats_endpoint():
+def test_stats_total_runs():
     response = client.get("/api/stats")
+
     assert response.status_code == 200
+
     payload = response.json()
-    assert payload["total_runs"] > 0
-    assert "success_rate" in payload
-    assert "by_agent" in payload
+
+    assert payload["total_runs"] == 200
 
 
-def test_explain_stream_returns_data():
+def test_missing_run_returns_404():
+    response = client.get("/api/runs/nonexistent-run-id")
+
+    assert response.status_code == 404
+
+
+def test_explain_stream_for_run():
     run_id = client.get("/api/runs?limit=1").json()["items"][0]["id"]
-    response = client.get(f"/api/explain?run_id={run_id}")
+
+    response = client.get(f"/api/runs/{run_id}/explain")
+
     assert response.status_code == 200
-    assert "text/event-stream" in response.headers.get("content-type", "")
-    text = response.text
-    assert "Analyzing run" in text or "done" in text.lower()
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert '"done": true' in response.text

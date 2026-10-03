@@ -152,6 +152,7 @@ class RunStore:
         self,
         status: list[str] | None = None,
         agent: list[str] | None = None,
+        tool: list[str] | None = None,
         q: str | None = None,
         sort: str = "started_at",
         order: str = "desc",
@@ -167,6 +168,23 @@ class RunStore:
         agent_values = {value.lower() for value in (agent or [])}
         if agent_values:
             filtered = [run for run in filtered if run["agent"].lower() in agent_values]
+
+        tool_values = {
+            value.strip().lower()
+            for item in (tool or [])
+            for value in item.split(",")
+            if value.strip()
+        }
+        if tool_values:
+            filtered = [
+                run
+                for run in filtered
+                if any(
+                    isinstance(step, dict)
+                    and str(step.get("tool") or "").strip().lower() in tool_values
+                    for step in run.get("steps") or []
+                )
+            ]
 
         if q:
             query = q.lower().strip()

@@ -27,6 +27,7 @@ def health_check() -> dict[str, str]:
 def list_runs(
     status: list[str] | None = Query(default=None),
     agent: list[str] | None = Query(default=None),
+    tool: list[str] | None = Query(default=None),
     q: str | None = Query(default=None),
     sort: str = Query(default="started_at"),
     order: str = Query(default="desc"),
@@ -36,6 +37,7 @@ def list_runs(
     return store.list_runs(
         status=status,
         agent=agent,
+        tool=tool,
         q=q,
         sort=sort,
         order=order,
@@ -58,6 +60,7 @@ def get_stats():
 
 
 @app.get("/api/explain")
+@app.get("/api/runs/{run_id}/explain")
 async def explain_run(run_id: str):
     run = store.get_run(run_id)
     if run is None:

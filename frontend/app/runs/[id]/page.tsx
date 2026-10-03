@@ -14,10 +14,24 @@ type Run = {
   ended_at: string | null;
   duration_ms: number | null;
   cost_usd: number | null;
-  steps: Array<{ name?: string; status?: string; summary?: string } | string>;
+  steps: Array<{
+    name?: string;
+    tool?: string;
+    status?: string;
+    summary?: string;
+    duration_ms?: number | null;
+    input?: unknown;
+    output?: unknown;
+    tokens?: { input?: number; output?: number };
+  } | string>;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+
+function formatStepValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return 'Not recorded';
+  return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+}
 
 export default function RunDetailPage() {
   const params = useParams<{ id: string }>();
@@ -25,6 +39,8 @@ export default function RunDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
+  const [expandedSteps, setExpandedSteps] = useState<number[]>([]);
+  const [deepLinkedStep, setDeepLinkedStep] = useState<number | null>(null);
 
   useEffect(() => {
     if (!params?.id) return;
@@ -37,6 +53,11 @@ export default function RunDetailPage() {
       })
       .then((payload) => {
         setRun(payload);
+        const match = window.location.hash.match(/^#step-(\d+)$/);
+        const stepNumber = match ? Number(match[1]) : null;
+        const validStep = stepNumber && stepNumber <= payload.steps.length ? stepNumber : null;
+        setExpandedSteps(validStep ? [validStep] : []);
+        setDeepLinkedStep(validStep);
         setError(null);
       })
       .catch((error) => {
@@ -46,10 +67,21 @@ export default function RunDetailPage() {
       .finally(() => setLoading(false));
   }, [params?.id]);
 
+  useEffect(() => {
+    if (!run || !deepLinkedStep) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`step-${deepLinkedStep}`)?.scrollIntoView({ block: 'center' });
+    });
+  }, [run, deepLinkedStep]);
+
   const handleExplain = async () => {
     if (!params?.id) return;
     setMessages([]);
-    const response = await fetch(`${API_BASE}/api/explain?run_id=${params.id}`);
+    const response = await fetch(`${API_BASE}/api/runs/${encodeURIComponent(params.id)}/explain`);
+    if (!response.ok) {
+      setMessages([`Explanation request failed (HTTP ${response.status}).`]);
+      return;
+    }
     const reader = response.body?.getReader();
     if (!reader) return;
 
@@ -128,17 +160,45 @@ export default function RunDetailPage() {
 
           <h3>Execution steps</h3>
           {run.steps && run.steps.length > 0 ? (
-            <ul>
+            <div className="step-list">
               {run.steps.map((step, index) => {
-                const name = typeof step === 'string' ? step : step.name || 'Step';
-                const status = typeof step === 'string' ? 'step' : step.status || 'step';
+                const stepNumber = index + 1;
+                const details = typeof step === 'string' ? null : step;
+                const name = details?.name || (typeof step === 'string' ? step : 'Step');
+                const status = details?.status || 'step';
+                const tokens = details?.tokens;
                 return (
-                  <li key={`${name}-${index}`}>
-                    <strong>{index + 1}.</strong> {name} <em>({status})</em>
-                  </li>
+                  <details
+                    className="step-detail"
+                    id={`step-${stepNumber}`}
+                    key={`${name}-${index}`}
+                    open={expandedSteps.includes(stepNumber)}
+                    onToggle={(event) => {
+                      const isOpen = event.currentTarget.open;
+                      setExpandedSteps((current) => isOpen
+                        ? current.includes(stepNumber) ? current : [...current, stepNumber]
+                        : current.filter((value) => value !== stepNumber));
+                    }}
+                  >
+                    <summary>
+                      <span><strong>Step {stepNumber}:</strong> {name}</span>
+                      <span className="small-muted">
+                        {details?.tool ? `${details.tool} · ` : ''}{status}
+                        {details?.duration_ms != null ? ` · ${details.duration_ms} ms` : ''}
+                        {tokens ? ` · ${tokens.input ?? 0}/${tokens.output ?? 0} tokens` : ''}
+                      </span>
+                    </summary>
+                    <div className="step-content">
+                      {details?.summary ? <p>{details.summary}</p> : null}
+                      <h4>Input</h4>
+                      <pre>{formatStepValue(details?.input)}</pre>
+                      <h4>Output</h4>
+                      <pre>{formatStepValue(details?.output)}</pre>
+                    </div>
+                  </details>
                 );
               })}
-            </ul>
+            </div>
           ) : (
             <p>No steps recorded for this run.</p>
           )}
