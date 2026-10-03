@@ -26,7 +26,8 @@ what it does and what I would improve.
 - The runs list API sends step details for every run, even though it only needs to
   send summary information. I would remove those extra details to make responses
   smaller.
-- You cannot filter runs by date yet.
+- The runs list can be filtered by an inclusive `started_at` date range using
+  `started_at_from` and `started_at_to`.
 - The runs page loads its data in the browser. The project brief asked for the list
   to be rendered by the server. Sorting is available in the API but not as a page
   control.
@@ -40,9 +41,9 @@ what it does and what I would improve.
 
 ## What I would improve next
 
-I would remove step details from list responses, add date filtering, and improve
-the success-rate calculation and its tests. I would also show how many costs are
-missing and add a frontend test for agent search.
+I would remove step details from list responses and improve the success-rate
+calculation and its tests. I would also show how many costs are missing and add a
+frontend test for agent search.
 
 The app keeps all runs in memory, which is fine for this small example. For
 20 million runs, I would use a database that can search and page through records

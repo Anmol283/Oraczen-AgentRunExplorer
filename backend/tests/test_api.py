@@ -20,6 +20,21 @@ def test_status_and_agent_filters_compose():
         assert run["agent"] == "kpi-analyst"
 
 
+def test_started_at_date_range_filters_runs_inclusively():
+    response = client.get(
+        "/api/runs?started_at_from=2026-08-01&started_at_to=2026-08-15&limit=500"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"]
+    assert payload["total"] < 200
+    assert all(
+        "2026-08-01" <= run["started_at"][:10] <= "2026-08-15"
+        for run in payload["items"]
+    )
+
+
 def test_tool_filter_matches_runs_with_matching_step():
     response = client.get("/api/runs?tool=vector_search&limit=500")
 

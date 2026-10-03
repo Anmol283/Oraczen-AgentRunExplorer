@@ -25,10 +25,14 @@ export default function RunsPage() {
   const [agent, setAgent] = useState('');
   const [query, setQuery] = useState('');
   const [tool, setTool] = useState('');
+  const [startedAtFrom, setStartedAtFrom] = useState('');
+  const [startedAtTo, setStartedAtTo] = useState('');
   const [appliedStatus, setAppliedStatus] = useState('');
   const [appliedAgent, setAppliedAgent] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
   const [appliedTool, setAppliedTool] = useState('');
+  const [appliedStartedAtFrom, setAppliedStartedAtFrom] = useState('');
+  const [appliedStartedAtTo, setAppliedStartedAtTo] = useState('');
   const [page, setPage] = useState(1);
   const [filtersReady, setFiltersReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -47,9 +51,11 @@ export default function RunsPage() {
     if (appliedAgent) params.set('agent', appliedAgent);
     if (appliedQuery) params.set('q', appliedQuery);
     if (appliedTool) params.set('tool', appliedTool);
+    if (appliedStartedAtFrom) params.set('started_at_from', appliedStartedAtFrom);
+    if (appliedStartedAtTo) params.set('started_at_to', appliedStartedAtTo);
     if (page > 1) params.set('page', String(page));
     return params.toString() ? `?${params.toString()}` : '';
-  }, [appliedStatus, appliedAgent, appliedQuery, appliedTool, page]);
+  }, [appliedStatus, appliedAgent, appliedQuery, appliedTool, appliedStartedAtFrom, appliedStartedAtTo, page]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -57,16 +63,22 @@ export default function RunsPage() {
     const initialAgent = params.get('agent') ?? '';
     const initialQuery = params.get('q') ?? '';
     const initialTool = params.get('tool') ?? '';
+    const initialStartedAtFrom = params.get('started_at_from') ?? '';
+    const initialStartedAtTo = params.get('started_at_to') ?? '';
     const requestedPage = Number(params.get('page') ?? 1);
     const initialPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
     setStatus(initialStatus);
     setAgent(initialAgent);
     setQuery(initialQuery);
     setTool(initialTool);
+    setStartedAtFrom(initialStartedAtFrom);
+    setStartedAtTo(initialStartedAtTo);
     setAppliedStatus(initialStatus);
     setAppliedAgent(initialAgent);
     setAppliedQuery(initialQuery);
     setAppliedTool(initialTool);
+    setAppliedStartedAtFrom(initialStartedAtFrom);
+    setAppliedStartedAtTo(initialStartedAtTo);
     setPage(initialPage);
     setFiltersReady(true);
   }, []);
@@ -76,16 +88,36 @@ export default function RunsPage() {
     const nextAgent = agent.trim();
     const nextQuery = query.trim();
     const nextTool = tool.trim();
+    const nextStartedAtFrom = startedAtFrom;
+    const nextStartedAtTo = startedAtTo;
     const filtersChanged =
-      nextAgent !== appliedAgent || nextQuery !== appliedQuery || nextTool !== appliedTool;
+      nextAgent !== appliedAgent ||
+      nextQuery !== appliedQuery ||
+      nextTool !== appliedTool ||
+      nextStartedAtFrom !== appliedStartedAtFrom ||
+      nextStartedAtTo !== appliedStartedAtTo;
     const timeout = window.setTimeout(() => {
       if (filtersChanged) setPage(1);
       setAppliedAgent(nextAgent);
       setAppliedQuery(nextQuery);
       setAppliedTool(nextTool);
+      setAppliedStartedAtFrom(nextStartedAtFrom);
+      setAppliedStartedAtTo(nextStartedAtTo);
     }, 300);
     return () => window.clearTimeout(timeout);
-  }, [agent, query, tool, filtersReady, appliedAgent, appliedQuery, appliedTool]);
+  }, [
+    agent,
+    query,
+    tool,
+    startedAtFrom,
+    startedAtTo,
+    filtersReady,
+    appliedAgent,
+    appliedQuery,
+    appliedTool,
+    appliedStartedAtFrom,
+    appliedStartedAtTo,
+  ]);
 
   useEffect(() => {
     if (!filtersReady) return;
@@ -95,6 +127,8 @@ export default function RunsPage() {
     if (appliedAgent) params.set('agent', appliedAgent);
     if (appliedQuery) params.set('q', appliedQuery);
     if (appliedTool) params.set('tool', appliedTool);
+    if (appliedStartedAtFrom) params.set('started_at_from', appliedStartedAtFrom);
+    if (appliedStartedAtTo) params.set('started_at_to', appliedStartedAtTo);
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String((page - 1) * PAGE_SIZE));
     params.set('sort', 'started_at');
@@ -138,7 +172,17 @@ export default function RunsPage() {
 
     window.history.replaceState({}, '', currentUrl || window.location.pathname);
     return () => controller.abort();
-  }, [filtersReady, appliedStatus, appliedAgent, appliedQuery, appliedTool, page, currentUrl]);
+  }, [
+    filtersReady,
+    appliedStatus,
+    appliedAgent,
+    appliedQuery,
+    appliedTool,
+    appliedStartedAtFrom,
+    appliedStartedAtTo,
+    page,
+    currentUrl,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -214,6 +258,26 @@ export default function RunsPage() {
             placeholder="Tool name(s)"
             aria-label="Filter by step tool"
           />
+
+          <label>
+            Started from
+            <input
+              type="date"
+              value={startedAtFrom}
+              onChange={(event) => setStartedAtFrom(event.target.value)}
+              aria-label="Started at or after"
+            />
+          </label>
+
+          <label>
+            Started to
+            <input
+              type="date"
+              value={startedAtTo}
+              onChange={(event) => setStartedAtTo(event.target.value)}
+              aria-label="Started at or before"
+            />
+          </label>
         </div>
 
         <p className="small-muted">

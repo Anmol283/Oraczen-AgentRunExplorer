@@ -22,7 +22,7 @@ Instead of grepping through JSONL files, use a searchable run list, inspect each
 
 | Area | What it does |
 | --- | --- |
-| **Runs** | Browse, search, filter, and page through agent runs. Filter by status, agent, or tool; search prompts, agent names, and run IDs. |
+| **Runs** | Browse, search, filter, and page through agent runs. Filter by status, agent, tool, or start-date range; search prompts, agent names, and run IDs. |
 | **Run details** | Inspect the prompt, status, timing, cost, errors, and ordered execution steps, including each step’s tool, input, output, duration, and token counts when available. |
 | **Explain a run** | Request a streamed summary of a run without needing an API key. |
 | **Dashboard** | Review overall and per-agent run statistics, durations, costs, and daily run volume. |
@@ -115,7 +115,7 @@ The backend runs separately from Next.js. Use `http://localhost:8000` as the bas
 | Method and path | Purpose | Typical response |
 | --- | --- | --- |
 | `GET /health` | Check that the service is up. | `{"status":"ok"}` |
-| `GET /api/runs` | Return a page of runs. Current query parameters are `status`, `agent`, `tool`, `q`, `sort`, `order`, `limit`, and `offset`. | An object with `total` and an `items` array. Current items include `steps`. |
+| `GET /api/runs` | Return a page of runs. Query parameters include `status`, `agent`, `tool`, `started_at_from`, `started_at_to`, `q`, `sort`, `order`, `limit`, and `offset`. | An object with `total` and an `items` array. Current items include `steps`. |
 | `GET /api/runs/{run_id}` | Return one run, including its steps. | A run record; `404` if the ID is unknown. |
 | `GET /api/stats` | Return global dashboard aggregates. | Run counts, success rates, duration summary, cost totals, and daily counts. |
 | `GET /api/runs/{run_id}/explain` | Stream a basic run summary as Server-Sent Events (SSE). | `text/event-stream`; `404` if the ID is unknown. |
@@ -129,13 +129,15 @@ The assignment requires `POST /api/runs/{id}/explain` with a mock provider. That
 | `status` | Exact match on status; repeat the parameter for multiple statuses. |
 | `agent` | Case-insensitive partial match on agent name; repeat the parameter for multiple names. |
 | `tool` | Match runs with a step using a supplied tool name; repeat the parameter or give comma-separated names. |
+| `started_at_from` | Include runs started on or after this date (`YYYY-MM-DD`). |
+| `started_at_to` | Include runs started on or before this date (`YYYY-MM-DD`). |
 | `q` | Case-insensitive search across prompt, agent name, and run ID. |
 | `sort` | Sort key. The intended values are `started_at`, `duration_ms`, and `cost_usd`. |
 | `order` | `asc` or `desc`; defaults to `desc`. |
 | `limit` | Page size; defaults to `50`, maximum `500`. |
 | `offset` | Number of matching runs to skip; defaults to `0`. |
 
-The current API composes the filters it supports in a single request. It does **not** implement a `started_at` date-range filter. The UI uses these current parameter names; the assignment describes the required behaviors but does not prescribe parameter names.
+The current API composes these filters in a single request. The date range is inclusive; either bound may be used on its own. If both are provided, `started_at_from` must be on or before `started_at_to`. The UI keeps the dates in the URL so the filtered view can be shared.
 
 ### Required list response shape
 
@@ -200,7 +202,13 @@ curl "http://localhost:8000/api/runs?limit=10"
 **Combine supported filters and sort by cost**
 
 ```bash
-curl "http://localhost:8000/api/runs?status=failed&agent=kpi&agent=research&tool=vector_search&q=report&sort=cost_usd&order=desc&limit=25&offset=0"
+curl "http://localhost:8000/api/runs?status=failed&agent=kpi&agent=research&started_at_from=2026-08-01&started_at_to=2026-08-15&tool=vector_search&q=report&sort=cost_usd&order=desc&limit=25&offset=0"
+```
+
+**Filter runs by start date**
+
+```bash
+curl "http://localhost:8000/api/runs?started_at_from=2026-08-01&started_at_to=2026-08-15"
 ```
 
 **Get dashboard statistics**

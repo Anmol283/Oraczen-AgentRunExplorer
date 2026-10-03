@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from math import ceil
 from pathlib import Path
 from statistics import median
@@ -153,6 +153,8 @@ class RunStore:
         status: list[str] | None = None,
         agent: list[str] | None = None,
         tool: list[str] | None = None,
+        started_at_from: date | None = None,
+        started_at_to: date | None = None,
         q: str | None = None,
         sort: str = "started_at",
         order: str = "desc",
@@ -171,6 +173,21 @@ class RunStore:
                 run
                 for run in filtered
                 if any(value in run["agent"].lower() for value in agent_values)
+            ]
+
+        if started_at_from:
+            filtered = [
+                run
+                for run in filtered
+                if run["started_at"]
+                and date.fromisoformat(run["started_at"][:10]) >= started_at_from
+            ]
+        if started_at_to:
+            filtered = [
+                run
+                for run in filtered
+                if run["started_at"]
+                and date.fromisoformat(run["started_at"][:10]) <= started_at_to
             ]
 
         tool_values = {

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -28,16 +30,26 @@ def list_runs(
     status: list[str] | None = Query(default=None),
     agent: list[str] | None = Query(default=None),
     tool: list[str] | None = Query(default=None),
+    started_at_from: date | None = Query(default=None),
+    started_at_to: date | None = Query(default=None),
     q: str | None = Query(default=None),
     sort: str = Query(default="started_at"),
     order: str = Query(default="desc"),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ):
+    if started_at_from and started_at_to and started_at_from > started_at_to:
+        raise HTTPException(
+            status_code=422,
+            detail="started_at_from must be on or before started_at_to",
+        )
+
     return store.list_runs(
         status=status,
         agent=agent,
         tool=tool,
+        started_at_from=started_at_from,
+        started_at_to=started_at_to,
         q=q,
         sort=sort,
         order=order,
