@@ -220,7 +220,10 @@ class RunStore:
         filtered = self._sort_runs(filtered, sort=sort, order=order)
         total = len(filtered)
         page = filtered[offset : offset + limit]
-        return {"total": total, "items": [self._serialize_run(run) for run in page]}
+        return {
+            "total": total,
+            "items": [self._serialize_run(run, include_steps=False) for run in page],
+        }
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:
         run = self.runs.get(run_id)
@@ -321,8 +324,10 @@ class RunStore:
         return ordered
 
     @staticmethod
-    def _serialize_run(run: dict[str, Any]) -> dict[str, Any]:
-        return {
+    def _serialize_run(
+        run: dict[str, Any], include_steps: bool = True
+    ) -> dict[str, Any]:
+        serialized = {
             "id": run["id"],
             "agent": run["agent"],
             "status": run["status"],
@@ -332,8 +337,10 @@ class RunStore:
             "ended_at": run["ended_at"],
             "duration_ms": run["duration_ms"],
             "cost_usd": run["cost_usd"],
-            "steps": run["steps"],
         }
+        if include_steps:
+            serialized["steps"] = run["steps"]
+        return serialized
 
     @staticmethod
     def _percentile(values: list[float], percentile: int) -> float | None:

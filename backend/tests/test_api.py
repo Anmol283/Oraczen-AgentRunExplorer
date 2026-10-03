@@ -41,10 +41,21 @@ def test_tool_filter_matches_runs_with_matching_step():
     assert response.status_code == 200
     payload = response.json()
     assert payload["items"]
-    assert all(
-        any(step.get("tool") == "vector_search" for step in run["steps"])
-        for run in payload["items"]
-    )
+    assert all("steps" not in run for run in payload["items"])
+
+    detail = client.get(f"/api/runs/{payload['items'][0]['id']}")
+    assert detail.status_code == 200
+    assert any(step.get("tool") == "vector_search" for step in detail.json()["steps"])
+
+
+def test_run_detail_includes_steps():
+    list_response = client.get("/api/runs?limit=1")
+    run_id = list_response.json()["items"][0]["id"]
+
+    detail_response = client.get(f"/api/runs/{run_id}")
+
+    assert detail_response.status_code == 200
+    assert "steps" in detail_response.json()
 
 
 def test_stats_total_runs():

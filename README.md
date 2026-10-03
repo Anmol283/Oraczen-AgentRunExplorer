@@ -115,7 +115,7 @@ The backend runs separately from Next.js. Use `http://localhost:8000` as the bas
 | Method and path | Purpose | Typical response |
 | --- | --- | --- |
 | `GET /health` | Check that the service is up. | `{"status":"ok"}` |
-| `GET /api/runs` | Return a page of runs. Query parameters include `status`, `agent`, `tool`, `started_at_from`, `started_at_to`, `q`, `sort`, `order`, `limit`, and `offset`. | An object with `total` and an `items` array. Current items include `steps`. |
+| `GET /api/runs` | Return a page of run summaries. Query parameters include `status`, `agent`, `tool`, `started_at_from`, `started_at_to`, `q`, `sort`, `order`, `limit`, and `offset`. | An object with `total` and an `items` array without `steps`. |
 | `GET /api/runs/{run_id}` | Return one run, including its steps. | A run record; `404` if the ID is unknown. |
 | `GET /api/stats` | Return global dashboard aggregates. | Run counts, success rates, duration summary, cost totals, and daily counts. |
 | `GET /api/runs/{run_id}/explain` | Stream a basic run summary as Server-Sent Events (SSE). | `text/event-stream`; `404` if the ID is unknown. |
@@ -139,9 +139,9 @@ The assignment requires `POST /api/runs/{id}/explain` with a mock provider. That
 
 The current API composes these filters in a single request. The date range is inclusive; either bound may be used on its own. If both are provided, `started_at_from` must be on or before `started_at_to`. The UI keeps the dates in the URL so the filtered view can be shared.
 
-### Required list response shape
+### List response shape
 
-The assignment requires list items to omit `steps`. This is the required compact shape, **not the current backend response**:
+List items omit `steps` to keep the response compact. For full step details, call `GET /api/runs/{run_id}`.
 
 ```json
 {
@@ -161,8 +161,6 @@ The assignment requires list items to omit `steps`. This is the required compact
   ]
 }
 ```
-
-**Current behavior differs:** the backend serializes each item with its full `steps` array. The list endpoint should be changed to omit steps to meet the assignment.
 
 ### Statistics response
 
