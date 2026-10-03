@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.data_loader import RunStore
 from main import app
 
 client = TestClient(app)
@@ -39,6 +40,20 @@ def test_stats_total_runs():
     payload = response.json()
 
     assert payload["total_runs"] == 200
+
+
+def test_stats_success_rate_matches_hand_calculation(tmp_path):
+    data_path = tmp_path / "runs.jsonl"
+    data_path.write_text(
+        '{"id":"run-1","agent":"sample","status":"succeeded"}\n'
+        '{"id":"run-2","agent":"sample","status":"failed"}\n',
+        encoding="utf-8",
+    )
+
+    stats = RunStore(data_path).get_stats()
+
+    # One successful run out of two total runs is a 50% success rate.
+    assert stats["success_rate"] == 0.5
 
 
 def test_missing_run_returns_404():
