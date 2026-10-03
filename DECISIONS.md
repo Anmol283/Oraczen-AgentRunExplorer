@@ -1,62 +1,54 @@
 # Decisions
 
-This is a small local explorer for the supplied dataset, not a production-scale
-observability system. These notes describe what the code currently does and where
-it falls short of the brief.
+This project is a small app for looking through the example agent runs. It works
+locally, but it is not ready for a large production dataset. This document explains
+what it does and what I would improve.
 
-## Data and metric decisions
+## How the data is handled
 
-1. **Missing costs:** `cost_usd: null` means “not priced,” not zero. Per-agent
-   totals sum only recorded costs, so they are known-cost subtotals rather than
-   guaranteed full costs. The run list and detail page show missing cost as `N/A`.
-   The dashboard does not show how many costs are missing, which makes its totals
-   easier to misread.
+- **Missing costs:** A missing cost is shown as `N/A`, not as `$0`. The dashboard
+  adds up only the costs that are known. That means its total could be less than
+  the real cost. The dashboard does not currently say how many costs are missing.
+- **Success rate:** The app divides the number of successful runs by the number of
+  all runs. This includes runs still in progress, so it is not the success rate of
+  completed runs only. The duration summary uses runs that have a duration.
+- **Messy records:** The data file has 201 lines, but one run ID appears twice, so
+  the app loads 200 unique runs. It also has missing costs, runs in progress, a
+  negative duration, and a run with no steps. The loader skips unreadable or
+  unusable records, treats negative costs and durations as missing, and keeps the
+  more complete version of a duplicate. It does not keep a report of skipped
+  records.
+- **Dashboard:** Dashboard statistics always cover all runs. They do not change
+  when you filter the run list.
 
-2. **Running runs and success rate:** only `succeeded` runs contribute to the
-   numerator, but the current denominator is all loaded runs, including `running`.
-   The reported value is therefore the fraction of all runs that succeeded, not a
-   success rate among completed runs. Duration statistics include records with a
-   duration; they are not explicitly limited to completed runs. This is the
-   implementation today, not an ideal metric definition.
+## What is not finished
 
-3. **Messy data:** the supplied file has 201 lines and 200 unique IDs because
-   `run_0031` is duplicated. It also includes null costs, running runs, a negative
-   duration, and an empty steps array. The loader normalizes fields, treats
-   negative durations and costs as missing, skips malformed JSON and unusable
-   records, and chooses between duplicate IDs using a basic completeness score.
-   That duplicate rule is pragmatic for this fixture; it is not a robust way to
-   reconcile conflicting production records. Rejected-row diagnostics are not
-   retained or exposed through the API.
+- The runs list API sends step details for every run, even though it only needs to
+  send summary information. I would remove those extra details to make responses
+  smaller.
+- You cannot filter runs by date yet.
+- The runs page loads its data in the browser. The project brief asked for the list
+  to be rendered by the server. Sorting is available in the API but not as a page
+  control.
+- Run explanations stream to the page, but they are basic summaries, not a real
+  explanation of why a run failed. The current route uses `GET`; the brief asked
+  for `POST`. There is no model provider or provider setting.
+- There are backend tests, including one that checks a success rate calculated by
+  hand. There is no `frontend test` yet. A useful first one would check that typing
+  part of an agent name into the search box shows matching runs. I skipped it
+  because the project does not have frontend testing tools set up.
 
-4. **Dashboard scope:** `/api/stats` is global to the loaded dataset and does not
-   change when the runs list is filtered.
+## What I would improve next
 
-## Current gaps and next steps
+I would remove step details from list responses, add date filtering, and improve
+the success-rate calculation and its tests. I would also show how many costs are
+missing and add a frontend test for agent search.
 
-- The list API returns full `steps` arrays, despite the brief asking that list
-  responses omit them. I would fix this first to reduce response size.
-- Date-range filtering is not implemented. I would add it to the API and test
-  combinations with the existing filters.
-- The runs page fetches data in the browser; it is not the server-rendered page
-  requested in the brief. Its sort order is fixed, although the API supports
-  sorting.
-- Explanations stream over `GET`, not the requested `POST`, and currently summarize
-  run fields and steps rather than explaining failure causes. There is no
-  provider interface or environment-selected mock; the stream is generated
-  directly by the backend.
-- Tests cover basic filters, tool filtering, a fixed total count, missing-run 404s,
-  and the explain stream. There is no hand-calculated stats assertion or frontend
-  test. I would add those before relying on the dashboard metrics or keyboard and
-  URL behavior.
+The app keeps all runs in memory, which is fine for this small example. For
+20 million runs, I would use a database that can search and page through records
+without loading everything into memory. I would also fetch step details only when
+someone opens a run.
 
-With another day, I would address the API contract and metric-definition gaps,
-add focused backend and frontend tests, and show missing-cost counts alongside
-known-cost subtotals. For 20 million runs, I would replace in-memory JSONL loading
-with durable indexed storage, query-level filtering and pagination, keep step
-payloads out of list queries, and use cached or background-computed aggregates.
-The exact storage choice should follow the expected write rate and query patterns.
-
-The parts I am least happy with are the steps included in list responses and the
-gap between the dashboard’s simple statistics and the brief’s completed-run
-metrics. The current explanation stream is useful to demonstrate streaming, but
-it should not be mistaken for a real diagnosis of a failed run.
+The biggest weaknesses right now are that list responses include too much data
+and the dashboard metrics are simpler than the brief requested. The explanation
+feature demonstrates streaming, but it does not diagnose failures.
