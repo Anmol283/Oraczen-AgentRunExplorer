@@ -24,7 +24,7 @@ Instead of grepping through JSONL files, use a searchable run list, inspect each
 | --- | --- |
 | **Runs** | Browse, search, filter, and page through agent runs. Filter by status, agent, or tool; search prompts, agent names, and run IDs. |
 | **Run details** | Inspect the prompt, status, timing, cost, errors, and ordered execution steps, including each step’s tool, input, output, duration, and token counts when available. |
-| **Explain a run** | Request a streamed, readable summary of a run. The local mock works without an API key. |
+| **Explain a run** | Request a streamed summary of a run without needing an API key. |
 | **Dashboard** | Review overall and per-agent run statistics, durations, costs, and daily run volume. |
 | **Shareable views** | List filters and the selected page are reflected in the URL, so you can copy and reopen a view. |
 | **Keyboard navigation** | Move the selected run with the arrow keys and open it with Enter. |
@@ -110,36 +110,36 @@ The dashboard shows overall run and status counts, success rates by agent, durat
 
 ## API reference
 
-The backend runs separately from Next.js. Use `http://localhost:8000` as the base URL when calling it directly.
+The backend runs separately from Next.js. Use `http://localhost:8000` as the base URL when calling it directly. The routes and parameters below describe the **current implementation**. The assignment contract and current implementation differ in several places; those gaps are called out after the reference.
 
 | Method and path | Purpose | Typical response |
 | --- | --- | --- |
 | `GET /health` | Check that the service is up. | `{"status":"ok"}` |
-| `GET /api/runs` | Return a page of runs. Accepts `status`, `agent`, `tool`, `q`, `sort`, `order`, `limit`, and `offset` query parameters. | An object with `total` and an `items` array of run records. |
+| `GET /api/runs` | Return a page of runs. Current query parameters are `status`, `agent`, `tool`, `q`, `sort`, `order`, `limit`, and `offset`. | An object with `total` and an `items` array. Current items include `steps`. |
 | `GET /api/runs/{run_id}` | Return one run, including its steps. | A run record; `404` if the ID is unknown. |
 | `GET /api/stats` | Return global dashboard aggregates. | Run counts, success rates, duration summary, cost totals, and daily counts. |
-| `GET /api/runs/{run_id}/explain` | Stream an explanation as Server-Sent Events (SSE). | `text/event-stream`; `404` if the ID is unknown. |
+| `GET /api/runs/{run_id}/explain` | Stream a basic run summary as Server-Sent Events (SSE). | `text/event-stream`; `404` if the ID is unknown. |
 
-The older `GET /api/explain?run_id={run_id}` path is also available. The frontend uses the run-specific `/api/runs/{run_id}/explain` route.
+The assignment requires `POST /api/runs/{id}/explain` with a mock provider. That required method/provider are **not implemented**: the current backend exposes the `GET` route above and directly streams a basic summary. No API key is needed for the current summary stream.
 
-### List query parameters
+### Current run-list query parameters
 
 | Parameter | Behavior |
 | --- | --- |
-| `status` | Filter by one or more statuses. Repeat the parameter to provide multiple values. |
-| `agent` | Filter by one or more agent names. Repeat the parameter to provide multiple values. |
-| `tool` | Match runs with a step using any supplied tool name. Comma-separated tool names are accepted. |
-| `q` | Case-insensitive search across prompt text, agent name, and run ID. |
-| `sort` | Sort by `started_at`, `duration_ms`, or `cost_usd`. |
-| `order` | `asc` or `desc`. |
+| `status` | Exact match on status; repeat the parameter for multiple statuses. |
+| `agent` | Case-insensitive partial match on agent name; repeat the parameter for multiple names. |
+| `tool` | Match runs with a step using a supplied tool name; repeat the parameter or give comma-separated names. |
+| `q` | Case-insensitive search across prompt, agent name, and run ID. |
+| `sort` | Sort key. The intended values are `started_at`, `duration_ms`, and `cost_usd`. |
+| `order` | `asc` or `desc`; defaults to `desc`. |
 | `limit` | Page size; defaults to `50`, maximum `500`. |
 | `offset` | Number of matching runs to skip; defaults to `0`. |
 
-Filters can be combined in one request. For example, a status, multiple agents, a tool, and a prompt search can all be applied together.
+The current API composes the filters it supports in a single request. It does **not** implement a `started_at` date-range filter. The UI uses these current parameter names; the assignment describes the required behaviors but does not prescribe parameter names.
 
-### Response shapes
+### Required list response shape
 
-`GET /api/runs` returns an object with this shape. Run records include metadata and a `steps` array; missing numeric values are returned as `null`.
+The assignment requires list items to omit `steps`. This is the required compact shape, **not the current backend response**:
 
 ```json
 {
@@ -154,14 +154,17 @@ Filters can be combined in one request. For example, a status, multiple agents, 
       "started_at": "2025-01-15T10:30:00+00:00",
       "ended_at": "2025-01-15T10:30:04+00:00",
       "duration_ms": 4000,
-      "cost_usd": 0.02,
-      "steps": []
+      "cost_usd": 0.02
     }
   ]
 }
 ```
 
-`GET /api/stats` returns an object with the following fields:
+**Current behavior differs:** the backend serializes each item with its full `steps` array. The list endpoint should be changed to omit steps to meet the assignment.
+
+### Statistics response
+
+`GET /api/stats` computes aggregates in the backend and returns fields in this shape:
 
 ```json
 {
@@ -182,7 +185,7 @@ Filters can be combined in one request. For example, a status, multiple agents, 
 }
 ```
 
-The values above illustrate the response structure; counts and metrics depend on the dataset. Success rates are fractions from `0` to `1`. The explain endpoint emits SSE `data:` events with a `message`, step information, and a final `done` event.
+Values above illustrate the response shape; actual values depend on the data. Success rates are fractions from `0` to `1`. Currently, the overall denominator includes all runs, including running ones, and duration statistics include every run with a recorded duration; they are not limited to completed runs as the assignment requires. Daily counts include every date between the earliest and latest recorded start dates, filling days with no runs as zero.
 
 ## Example requests and responses
 
@@ -194,10 +197,10 @@ Run these from a terminal while the backend is running. On Windows, use `curl.ex
 curl "http://localhost:8000/api/runs?limit=10"
 ```
 
-**Combine filters and sort by cost**
+**Combine supported filters and sort by cost**
 
 ```bash
-curl "http://localhost:8000/api/runs?status=failed&agent=kpi-analyst&tool=vector_search&q=report&sort=cost_usd&order=desc"
+curl "http://localhost:8000/api/runs?status=failed&agent=kpi&agent=research&tool=vector_search&q=report&sort=cost_usd&order=desc&limit=25&offset=0"
 ```
 
 **Get dashboard statistics**
@@ -213,7 +216,7 @@ curl "http://localhost:8000/api/runs/run_0042"
 curl -N "http://localhost:8000/api/runs/run_0042/explain"
 ```
 
-The explain stream uses the built-in deterministic mock provider, so it works locally without credentials and produces events with a short delay.
+The second request uses the current `GET` route and returns a progressively streamed SSE response. It needs no API key. It is a basic summary stream, not the assignment’s required `POST` route or configurable mock-provider implementation.
 
 ## Data and decisions
 
