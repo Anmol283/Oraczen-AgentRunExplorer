@@ -84,6 +84,7 @@ def get_explain_provider() -> ExplainProvider:
     )
 
 
+@app.get("/api/runs/{run_id}/explain")
 @app.post("/api/runs/{run_id}/explain")
 async def explain_run(run_id: str):
     run = store.get_run(run_id)

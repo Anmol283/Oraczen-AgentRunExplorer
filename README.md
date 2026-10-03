@@ -26,7 +26,7 @@ Instead of grepping through JSONL files, use a searchable run list, inspect each
 | **Run details** | Inspect the prompt, status, timing, cost, errors, and ordered execution steps, including each step’s tool, input, output, duration, and token counts when available. |
 | **Explain a run** | Request a progressively streamed explanation. The configurable mock provider works without an API key and points out recorded failure details. |
 | **Dashboard** | Review overall and per-agent run statistics, durations, costs, and daily run volume. |
-| **Shareable views** | List filters and the selected page are reflected in the URL, so you can copy and reopen a view. |
+| **Shareable views** | List filters and the selected page are reflected in the URL, so you can copy and reopen a view. The initial filtered page is fetched and rendered on the server. |
 | **Keyboard navigation** | Move the selected run with the arrow keys and open it with Enter. |
 | **Step deep links** | Open a particular step directly with a URL fragment such as `/runs/run_0042#step-3`. |
 
@@ -91,7 +91,7 @@ The backend reads `EXPLAIN_PROVIDER` from its process environment. It defaults t
 
 ### Runs list
 
-The list shows 25 runs per page. Use the controls to filter by status, agent, or tool, and to search by prompt text, agent name, or run ID. The page number and applied filters are stored in the URL. An on-page request counter and latest request duration show list-fetch activity.
+The server fetches and renders the initial 25 runs using the URL filters. After the page loads, use the controls to filter by status, agent, tool, or start-date range, search by prompt text, agent name, or run ID, and move between pages. Interactions fetch updated results from the API; filters and page number remain in the URL. An on-page request counter and latest request duration show interactive list-fetch activity.
 
 | Key | Action |
 | --- | --- |
@@ -121,6 +121,7 @@ The backend runs separately from Next.js. Use `http://localhost:8000` as the bas
 | `GET /api/runs/{run_id}` | Return one run, including its steps. | A run record; `404` if the ID is unknown. |
 | `GET /api/stats` | Return global dashboard aggregates. | Run counts, success rates, completed-run duration summary, cost totals, and daily counts. |
 | `POST /api/runs/{run_id}/explain` | Progressively stream a short explanation as Server-Sent Events (SSE). | `text/event-stream`; `404` if the ID is unknown. |
+| `GET /api/runs/{run_id}/explain` | Browser-friendly alias of the explain stream. | `text/event-stream`; `404` if the ID is unknown. |
 
 The explain provider is selected with `EXPLAIN_PROVIDER`; `mock` is the built-in provider and the default. It emits deterministic text in delayed chunks, requires no API key, and includes recorded failure details when available.
 
@@ -224,7 +225,7 @@ curl "http://localhost:8000/api/runs/run_0042"
 curl -N -X POST "http://localhost:8000/api/runs/run_0042/explain"
 ```
 
-The second request progressively prints SSE events as the mock provider generates the explanation. It requires no API key.
+The POST request progressively prints SSE events as the mock provider generates the explanation. A browser address bar sends GET, so you can also open `http://localhost:8000/api/runs/run_0042/explain` directly to view the stream.
 
 ## Data and decisions
 
@@ -259,7 +260,9 @@ The backend tests cover composed filters, tool filtering, date filtering, list/d
 | `backend/main.py` | FastAPI routes and SSE explanation endpoint |
 | `backend/app/data_loader.py` | JSONL loading, normalization, filtering, and aggregates |
 | `backend/tests/test_api.py` | Backend API tests |
-| `frontend/app/runs/` | Run list and run detail pages |
+| `frontend/app/runs/page.tsx` | Server-rendered initial run list |
+| `frontend/app/runs/RunsClient.tsx` | Interactive run filters, pagination, and keyboard navigation |
+| `frontend/app/runs/[id]/` | Run detail page |
 | `frontend/app/dashboard/` | Dashboard page |
 | `data/runs.jsonl` | Included run dataset |
 | `DECISIONS.md` | Data and implementation decisions |

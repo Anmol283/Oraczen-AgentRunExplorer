@@ -116,3 +116,14 @@ def test_post_explain_stream_uses_mock_provider(monkeypatch):
     assert '"message":' in response.text
     assert "Error:" in response.text
     assert '"done": true' in response.text
+
+
+def test_get_explain_stream_can_be_opened_in_browser(monkeypatch):
+    monkeypatch.setenv("EXPLAIN_PROVIDER", "mock")
+    run_id = client.get("/api/runs?limit=1").json()["items"][0]["id"]
+
+    response = client.get(f"/api/runs/{run_id}/explain")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert '"done": true' in response.text
