@@ -198,7 +198,8 @@ export default function RunsPage() {
           <input
             value={agent}
             onChange={(event) => setAgent(event.target.value)}
-            placeholder="Agent name"
+            placeholder="Search agent name"
+            aria-label="Search agent name"
           />
 
           <input

@@ -167,7 +167,11 @@ class RunStore:
 
         agent_values = {value.lower() for value in (agent or [])}
         if agent_values:
-            filtered = [run for run in filtered if run["agent"].lower() in agent_values]
+            filtered = [
+                run
+                for run in filtered
+                if any(value in run["agent"].lower() for value in agent_values)
+            ]
 
         tool_values = {
             value.strip().lower()
